@@ -193,7 +193,7 @@ export const RealJvmRunner: React.FC<RealJvmRunnerProps> = ({ project }) => {
             <h4 className="text-sm font-bold text-white">Double-Click Windows Launcher (.bat)</h4>
           </div>
           <p className="text-xs text-slate-400">
-            Pre-configured script for family and friends. Double-clicking it automatically runs the project with local Java.
+            Pre-configured script for Windows. Double-clicking it automatically runs the project with local Java.
           </p>
           <button
             onClick={handleDownloadBat}

@@ -285,7 +285,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onPro
           <div>
             <label className="block text-xs font-semibold text-amber-300 mb-1 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>Instructions for Family & Friends</span>
+              <span>Project Instructions / Notes</span>
             </label>
             <textarea
               value={instructions}

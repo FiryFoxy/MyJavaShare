@@ -24,13 +24,14 @@ export interface JavaProject {
   updatedAt: string;
   type: ProjectType;
   category: ProjectCategory;
-  instructions: string; // Friendly instructions for family & friends
+  instructions: string; // Project instructions
   files: JavaFile[];
   binaryBase64?: string; // For .jar or .class files
   binaryFilename?: string; // e.g. "MyGame.jar" or "Calculator.class"
   jarManifest?: JarManifest;
   tags: string[];
   isSample?: boolean;
+  isRepositoryProtected?: boolean; // Stored in GitHub repository folder (only owner can delete via Git)
 }
 
 export interface ExecutionLog {

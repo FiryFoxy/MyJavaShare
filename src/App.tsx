@@ -4,7 +4,6 @@ import {
   Plus,
   Search,
   Upload,
-  Github,
   Gamepad2,
   Terminal,
   Wrench,
@@ -13,16 +12,22 @@ import {
   Filter,
   CheckCircle,
   Archive,
+  Download,
+  FolderGit2,
 } from 'lucide-react';
 import { JavaProject, ProjectCategory } from './types';
-import { getStoredProjects, saveProject, deleteProject } from './services/storage';
+import {
+  getStoredProjects,
+  saveProject,
+  deleteProject,
+  fetchRepositoryProjects,
+  downloadRepositoryCatalog,
+} from './services/storage';
 import { parseProjectFromUrl } from './services/share';
 import { Header } from './components/Header';
 import { ProjectCard } from './components/ProjectCard';
 import { ProjectShowcase } from './components/ProjectShowcase';
 import { UploadModal } from './components/UploadModal';
-import { GitHubPagesModal } from './components/GitHubPagesModal';
-import { ShareGuideModal } from './components/ShareGuideModal';
 
 export default function App() {
   const [projects, setProjects] = useState<JavaProject[]>([]);
@@ -32,8 +37,6 @@ export default function App() {
 
   // Modals
   const [isUploadOpen, setIsUploadOpen] = useState(false);
-  const [isGitHubModalOpen, setIsGitHubModalOpen] = useState(false);
-  const [isShareGuideOpen, setIsShareGuideOpen] = useState(false);
 
   // Notification toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -43,30 +46,38 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Initial load & URL routing check
-  useEffect(() => {
-    const loadedProjects = getStoredProjects();
-    setProjects(loadedProjects);
+  // Initial load: merges locally stored projects and repository projects
+  const refreshProjects = async () => {
+    const local = getStoredProjects();
+    const repo = await fetchRepositoryProjects();
 
-    // Check if opened via share link
-    const parsed = parseProjectFromUrl();
-    if (parsed) {
-      if (typeof parsed === 'string') {
-        // Project ID
-        const match = loadedProjects.find(p => p.id === parsed);
-        if (match) {
-          setSelectedProject(match);
-        }
-      } else {
-        // Full parsed project object from LZString URL hash!
-        // Save to state & storage
-        saveProject(parsed);
-        const updated = getStoredProjects();
-        setProjects(updated);
-        setSelectedProject(parsed);
-        showToast(`Loaded shared project: ${parsed.title}`);
+    const merged = [...repo];
+    const repoIds = new Set(repo.map(p => p.id));
+    for (const lp of local) {
+      if (!repoIds.has(lp.id)) {
+        merged.push(lp);
       }
     }
+    setProjects(merged);
+    return merged;
+  };
+
+  useEffect(() => {
+    refreshProjects().then((loadedProjects) => {
+      // Check if opened via share link
+      const parsed = parseProjectFromUrl();
+      if (parsed) {
+        if (typeof parsed === 'string') {
+          const match = loadedProjects.find(p => p.id === parsed);
+          if (match) setSelectedProject(match);
+        } else {
+          saveProject(parsed);
+          refreshProjects();
+          setSelectedProject(parsed);
+          showToast(`Loaded project: ${parsed.title}`);
+        }
+      }
+    });
 
     // Listen for hash changes
     const handleHashChange = () => {
@@ -98,22 +109,33 @@ export default function App() {
 
   const handleProjectCreated = (newProject: JavaProject) => {
     saveProject(newProject);
-    const updated = getStoredProjects();
-    setProjects(updated);
+    refreshProjects();
     setSelectedProject(newProject);
     window.location.hash = `#p=${newProject.id}`;
     showToast(`Project "${newProject.title}" saved!`);
   };
 
   const handleDeleteProject = (id: string) => {
+    const res = deleteProject(id);
+    if (!res.success) {
+      alert(res.error);
+      return;
+    }
     if (window.confirm('Are you sure you want to remove this project?')) {
-      deleteProject(id);
-      const updated = getStoredProjects();
-      setProjects(updated);
+      refreshProjects();
       setSelectedProject(null);
       window.location.hash = '';
       showToast('Project removed.');
     }
+  };
+
+  const handleExportForGitHub = () => {
+    if (projects.length === 0) {
+      alert('Upload at least one project first to export.');
+      return;
+    }
+    downloadRepositoryCatalog(projects);
+    showToast('Downloaded projects.json! Place it into public/projects/ and git push.');
   };
 
   // Filter projects by search and category
@@ -132,41 +154,36 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
-      {/* Top Bar Contract compliant navigation */}
       <Header
         projectCount={projects.length}
         onNewProject={() => setIsUploadOpen(true)}
-        onOpenGitHubGuide={() => setIsGitHubModalOpen(true)}
-        onOpenShareInfo={() => setIsShareGuideOpen(true)}
         onViewGallery={handleBackToGallery}
       />
 
       {/* Main Content Area */}
       <main className="flex-1 pb-16">
         {selectedProject ? (
-          // Direct Project Showcase View (The Family & Friends Experience)
           <ProjectShowcase
             project={selectedProject}
             onBack={handleBackToGallery}
             onDelete={handleDeleteProject}
           />
         ) : (
-          // Projects Gallery / Catalog View
           <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-8 space-y-8">
             {/* Hero Section */}
             <div className="relative rounded-3xl bg-radial from-slate-900 via-slate-900 to-slate-950 border border-slate-800 p-8 sm:p-12 overflow-hidden shadow-2xl">
               <div className="relative z-10 max-w-2xl space-y-4">
                 <div className="flex items-center gap-2 text-xs font-mono text-amber-400">
                   <Coffee className="w-4 h-4" />
-                  <span>Personal Java Hosting for Family & Friends</span>
+                  <span>Personal Java Application Hub</span>
                 </div>
 
                 <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-tight">
-                  Host, run, and share your Java creations.
+                  Host, run, and manage your Java projects.
                 </h1>
 
                 <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-                  Upload your <code className="text-amber-300">.jar</code>, <code className="text-amber-300">.class</code>, or <code className="text-amber-300">.java</code> files. Share direct links with family and friends so they can play right in their web browser or download a 1-click PC launcher. Free tier on GitHub Pages ready!
+                  Upload compiled <code className="text-amber-300">.jar</code> or <code className="text-amber-300">.class</code> files. Execute them in your browser via the real WebAssembly OpenJDK 17 JVM or download to run natively.
                 </p>
 
                 <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -175,16 +192,19 @@ export default function App() {
                     className="flex items-center gap-2 px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold rounded-xl text-xs sm:text-sm shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
-                    <span>Upload or Create Java Project</span>
+                    <span>Upload Java Project</span>
                   </button>
 
-                  <button
-                    onClick={() => setIsGitHubModalOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-750 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs sm:text-sm transition-colors cursor-pointer"
-                  >
-                    <Github className="w-4 h-4 text-slate-400" />
-                    <span>GitHub Pages Free Tier Setup</span>
-                  </button>
+                  {projects.length > 0 && (
+                    <button
+                      onClick={handleExportForGitHub}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-750 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs sm:text-sm transition-colors cursor-pointer"
+                      title="Download projects.json to commit to public/projects/ in your GitHub repository"
+                    >
+                      <FolderGit2 className="w-4 h-4 text-amber-400" />
+                      <span>Save to Repository Folder</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -194,7 +214,6 @@ export default function App() {
 
             {/* Filter and Search Bar */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-              {/* Category Segmented Controls (Interactive filter buttons) */}
               <div className="flex items-center gap-1 p-1 bg-slate-900 border border-slate-800 rounded-xl overflow-x-auto">
                 <button
                   onClick={() => setSelectedCategory('all')}
@@ -255,7 +274,7 @@ export default function App() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search projects or tags..."
+                  placeholder="Search projects..."
                   className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-400"
                 />
               </div>
@@ -269,7 +288,7 @@ export default function App() {
                 </div>
                 <h3 className="text-xl font-bold text-white">Your Java Hub is Ready</h3>
                 <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-md mx-auto">
-                  No projects loaded yet. Upload your compiled <strong className="text-amber-400 font-semibold">.jar</strong> executable archive or <strong className="text-amber-400 font-semibold">.class</strong> bytecode file to run it with the real WebAssembly OpenJDK JVM and generate shareable links for family and friends.
+                  No projects loaded yet. Upload your compiled <strong className="text-amber-400 font-semibold">.jar</strong> executable archive or <strong className="text-amber-400 font-semibold">.class</strong> bytecode file to run it with the real WebAssembly OpenJDK 17 JVM.
                 </p>
                 <div className="pt-2">
                   <button
@@ -324,41 +343,19 @@ export default function App() {
           <div className="flex items-center gap-2">
             <Coffee className="w-4 h-4 text-amber-500" />
             <span className="font-semibold text-slate-400">JavaDrop</span>
-            <span>· Dedicated Java hosting for family & friends</span>
+            <span>· Personal Java Project Hub</span>
           </div>
-
-          <div className="flex items-center gap-6">
-            <button
-              onClick={() => setIsGitHubModalOpen(true)}
-              className="hover:text-slate-300 transition-colors cursor-pointer"
-            >
-              GitHub Pages Free Tier
-            </button>
-            <button
-              onClick={() => setIsShareGuideOpen(true)}
-              className="hover:text-slate-300 transition-colors cursor-pointer"
-            >
-              How Sharing Works
-            </button>
+          <div className="text-slate-600 font-mono text-[11px]">
+            Repository Folder: <code>public/projects/</code>
           </div>
         </div>
       </footer>
 
-      {/* Modals */}
+      {/* Upload Modal */}
       <UploadModal
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
         onProjectCreated={handleProjectCreated}
-      />
-
-      <GitHubPagesModal
-        isOpen={isGitHubModalOpen}
-        onClose={() => setIsGitHubModalOpen(false)}
-      />
-
-      <ShareGuideModal
-        isOpen={isShareGuideOpen}
-        onClose={() => setIsShareGuideOpen(false)}
       />
 
       {/* Toast popup */}

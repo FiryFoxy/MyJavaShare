@@ -147,14 +147,14 @@ export const ProjectShowcase: React.FC<ProjectShowcaseProps> = ({ project, onBac
               {project.description}
             </p>
 
-            {/* Note for Family & Friends */}
+            {/* Project Instructions */}
             {project.instructions && (
               <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mt-3">
                 <div className="flex items-start gap-2.5">
                   <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
                   <div>
                     <h4 className="text-xs font-bold text-amber-300 uppercase tracking-wide">
-                      Instructions for Family & Friends
+                      Project Instructions
                     </h4>
                     <p className="text-xs sm:text-sm text-amber-100/90 mt-1 leading-relaxed">
                       {project.instructions}
@@ -240,7 +240,7 @@ export const ProjectShowcase: React.FC<ProjectShowcaseProps> = ({ project, onBac
         </div>
       )}
 
-      {/* TAB 2: RUN ON PC (FRIENDLY GUIDE FOR FAMILY & FRIENDS) */}
+      {/* TAB 2: RUN ON PC */}
       {activeTab === 'download' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Card 1: 1-Click Launchers */}
@@ -303,11 +303,11 @@ export const ProjectShowcase: React.FC<ProjectShowcaseProps> = ({ project, onBac
             </div>
           </div>
 
-          {/* Card 2: Simple Guide for Friends & Family */}
+          {/* Card 2: Simple Guide for Running Locally */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <Laptop className="w-4 h-4 text-emerald-400" />
-              <span>Easy Guide for Family & Friends</span>
+              <span>How to Run Locally on PC</span>
             </h3>
 
             <div className="space-y-3 text-xs text-slate-300 leading-relaxed">
@@ -407,7 +407,7 @@ export const ProjectShowcase: React.FC<ProjectShowcaseProps> = ({ project, onBac
               <span>Share Link Pointing Directly to This Project</span>
             </h3>
             <p className="text-xs sm:text-sm text-slate-400 mt-1">
-              Send this single link to family and friends. When they open it, it opens directly to this project without needing a backend server!
+              Use this direct link to open and run this project immediately in the browser.
             </p>
           </div>
 

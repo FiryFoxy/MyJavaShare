@@ -83,7 +83,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onSelect, onS
             <button
               onClick={() => onShare(project)}
               className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-              title="Share Link with Family & Friends"
+              title="Share Project Link"
             >
               <Share2 className="w-4 h-4" />
             </button>

@@ -16,6 +16,29 @@ export function getStoredProjects(): JavaProject[] {
   }
 }
 
+/**
+ * Fetches projects stored permanently in the GitHub repository (public/projects/projects.json)
+ */
+export async function fetchRepositoryProjects(): Promise<JavaProject[]> {
+  try {
+    const baseUrl = import.meta.env.BASE_URL || './';
+    const cleanBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+    const res = await fetch(`${cleanBase}projects/projects.json?t=${Date.now()}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      return data.map(p => ({
+        ...p,
+        isRepositoryProtected: true,
+      }));
+    }
+    return [];
+  } catch (err) {
+    console.warn('Could not fetch repository projects:', err);
+    return [];
+  }
+}
+
 export function saveProject(project: JavaProject): void {
   const existing = getStoredProjects();
   const index = existing.findIndex(p => p.id === project.id);
@@ -45,10 +68,20 @@ export function saveProject(project: JavaProject): void {
   }
 }
 
-export function deleteProject(id: string): void {
+export function deleteProject(id: string): { success: boolean; error?: string } {
   const existing = getStoredProjects();
+  const target = existing.find(p => p.id === id);
+
+  if (target?.isRepositoryProtected) {
+    return {
+      success: false,
+      error: 'This project is stored in your GitHub repository folder. Only the repository owner can remove it by deleting it from GitHub.',
+    };
+  }
+
   const updated = existing.filter(p => p.id !== id);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  return { success: true };
 }
 
 export function getProjectById(id: string): JavaProject | undefined {
@@ -61,31 +94,18 @@ export function exportAllProjectsJson(): string {
   return JSON.stringify(projects, null, 2);
 }
 
-export function importProjectsFromJson(jsonString: string): { success: boolean; count: number; error?: string } {
-  try {
-    const parsed = JSON.parse(jsonString);
-    if (!Array.isArray(parsed)) {
-      throw new Error('Imported data must be an array of projects.');
-    }
-    const existing = getStoredProjects();
-    const existingIds = new Set(existing.map(p => p.id));
-    
-    const merged = [...existing];
-    let addedCount = 0;
-
-    for (const proj of parsed) {
-      if (proj && proj.id && proj.title) {
-        if (!existingIds.has(proj.id)) {
-          merged.push(proj);
-          addedCount++;
-        }
-      }
-    }
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-    return { success: true, count: addedCount };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Unknown parsing error';
-    return { success: false, count: 0, error: msg };
-  }
+/**
+ * Downloads the projects.json to place into public/projects/projects.json for git commit
+ */
+export function downloadRepositoryCatalog(projects: JavaProject[]): void {
+  const jsonStr = JSON.stringify(projects, null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'projects.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
