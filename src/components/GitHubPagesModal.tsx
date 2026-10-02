@@ -11,7 +11,7 @@ const GITHUB_ACTIONS_WORKFLOW = `name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: ['main']
+    branches: ['main', 'master']
   workflow_dispatch:
 
 permissions:
@@ -148,6 +148,28 @@ git push -u origin main`;
             <p className="leading-relaxed">
               This site is designed as a standalone static application. All project files, Java code, and binaries run completely in the browser and can be shared with URL hash links. You can host it permanently for free on GitHub Pages at <code>https://&lt;username&gt;.github.io/&lt;repo&gt;/</code>!
             </p>
+          </div>
+
+          {/* CRITICAL FIX FOR BLANK PAGE / 404 main.tsx */}
+          <div className="bg-amber-950/40 border border-amber-500/40 rounded-xl p-4 text-xs text-slate-200 space-y-2.5">
+            <div className="flex items-center gap-2 text-amber-300 font-bold text-sm">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+              <span>Fixing Blank Page: 404 main.tsx</span>
+            </div>
+            <p className="text-slate-300 leading-relaxed">
+              If your GitHub Pages URL shows a blank page with <code className="text-amber-300">404 (main.tsx)</code>, it means GitHub Pages is currently serving the raw uncompiled root folder instead of the built bundle.
+            </p>
+            <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1.5 font-mono text-[11px] text-slate-300">
+              <div className="font-bold text-amber-400 text-xs font-sans">Quick 1-Minute Fix:</div>
+              <div>1. Go to your GitHub repository: <strong>Settings</strong> &gt; <strong>Pages</strong></div>
+              <div>2. Under <strong>Build and deployment &gt; Source</strong>:</div>
+              <div className="pl-3 text-emerald-400 font-bold">
+                Change from "Deploy from a branch" ➔ select "GitHub Actions"
+              </div>
+              <div className="text-slate-400 mt-1">
+                (With "GitHub Actions" selected, the included <code>.github/workflows/deploy.yml</code> automatically builds the site cleanly and deploys it!)
+              </div>
+            </div>
           </div>
 
           {/* Step 1: GitHub Workflow File */}
