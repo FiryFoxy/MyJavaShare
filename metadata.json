@@ -3,4 +3,5 @@
   "description": "Host, run, and share your Java (.java, .class, .jar) projects with family and friends on GitHub Pages free tier.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  
 }
