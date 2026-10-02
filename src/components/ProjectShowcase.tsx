@@ -20,8 +20,7 @@ import {
   Cpu,
 } from 'lucide-react';
 import { JavaProject } from '../types';
-import { TerminalRunner } from './TerminalRunner';
-import { GraphicsCanvasRunner } from './GraphicsCanvasRunner';
+import { RealJvmRunner } from './RealJvmRunner';
 import { generateShareUrl, generateWindowsLauncherScript, generateUnixLauncherScript } from '../services/share';
 
 interface ProjectShowcaseProps {
@@ -237,28 +236,7 @@ export const ProjectShowcase: React.FC<ProjectShowcaseProps> = ({ project, onBac
       {/* TAB 1: RUN ONLINE */}
       {activeTab === 'run' && (
         <div className="space-y-4">
-          {isGraphicsProject ? (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              <div className="lg:col-span-7 flex flex-col justify-center">
-                <GraphicsCanvasRunner projectId={project.id} projectTitle={project.title} />
-              </div>
-              <div className="lg:col-span-5 flex flex-col">
-                <TerminalRunner
-                  code={mainFile.content}
-                  projectTitle={project.title}
-                  instructions={project.instructions}
-                  autoStart={false}
-                />
-              </div>
-            </div>
-          ) : (
-            <TerminalRunner
-              code={mainFile.content}
-              projectTitle={project.title}
-              instructions={project.instructions}
-              autoStart={true}
-            />
-          )}
+          <RealJvmRunner project={project} />
         </div>
       )}
 

@@ -12,6 +12,7 @@ import {
   Share2,
   Filter,
   CheckCircle,
+  Archive,
 } from 'lucide-react';
 import { JavaProject, ProjectCategory } from './types';
 import { getStoredProjects, saveProject, deleteProject } from './services/storage';
@@ -260,8 +261,27 @@ export default function App() {
               </div>
             </div>
 
-            {/* Projects Grid */}
-            {filteredProjects.length > 0 ? (
+            {/* Projects Grid or Clean Empty State */}
+            {projects.length === 0 ? (
+              <div className="p-12 sm:p-16 text-center bg-slate-900/60 border border-slate-800 rounded-3xl space-y-4 max-w-2xl mx-auto shadow-xl">
+                <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mx-auto">
+                  <Archive className="w-8 h-8" />
+                </div>
+                <h3 className="text-xl font-bold text-white">Your Java Hub is Ready</h3>
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-md mx-auto">
+                  No projects loaded yet. Upload your compiled <strong className="text-amber-400 font-semibold">.jar</strong> executable archive or <strong className="text-amber-400 font-semibold">.class</strong> bytecode file to run it with the real WebAssembly OpenJDK JVM and generate shareable links for family and friends.
+                </p>
+                <div className="pt-2">
+                  <button
+                    onClick={() => setIsUploadOpen(true)}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold rounded-xl text-xs sm:text-sm shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Upload Java Project (.jar / .class)</span>
+                  </button>
+                </div>
+              </div>
+            ) : filteredProjects.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredProjects.map((project) => (
                   <ProjectCard
@@ -281,7 +301,7 @@ export default function App() {
                 <p className="text-xs text-slate-400 max-w-sm mx-auto">
                   {searchQuery
                     ? `No projects matching "${searchQuery}". Try a different keyword.`
-                    : 'No projects in this category yet.'}
+                    : 'No projects in this category.'}
                 </p>
                 <button
                   onClick={() => {

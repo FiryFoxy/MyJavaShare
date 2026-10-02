@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { X, Upload, FileCode, Archive, Cpu, Sparkles, Check, AlertCircle } from 'lucide-react';
-import { JavaProject, ProjectType, ProjectCategory, JavaFile } from '../types';
+import { X, Upload, Archive, Cpu, Sparkles, Check, AlertCircle } from 'lucide-react';
+import { JavaProject, ProjectType, ProjectCategory } from '../types';
 import { parseClassFile, parseJarArchive } from '../services/bytecodeParser';
 
 interface UploadModalProps {
@@ -9,125 +9,20 @@ interface UploadModalProps {
   onProjectCreated: (project: JavaProject) => void;
 }
 
-const TEMPLATES: { label: string; code: string; title: string; category: ProjectCategory; instructions: string }[] = [
-  {
-    label: 'Interactive Scanner Game',
-    title: 'Dice Roll Challenge',
-    category: 'game',
-    instructions: 'Enter your bet amount and roll the dice against the computer! Try to double your coins.',
-    code: `import java.util.Scanner;
-import java.util.Random;
-
-public class DiceGame {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        Random random = new Random();
-
-        int coins = 100;
-        System.out.println("=== WELCOME TO DICE ROLLER ===");
-        System.out.println("You have 100 coins. Can you reach 250?\\n");
-
-        while (coins > 0 && coins < 250) {
-            System.out.println("Coins: " + coins);
-            System.out.print("Enter bet amount (or 0 to quit): ");
-            int bet = scanner.nextInt();
-
-            if (bet == 0) break;
-            if (bet > coins) {
-                System.out.println("You don't have that many coins!\\n");
-                continue;
-            }
-
-            int playerRoll = random.nextInt(6) + 1;
-            int computerRoll = random.nextInt(6) + 1;
-
-            System.out.println("You rolled: " + playerRoll);
-            System.out.println("Computer rolled: " + computerRoll);
-
-            if (playerRoll > computerRoll) {
-                System.out.println("🎉 You won " + bet + " coins!\\n");
-                coins += bet;
-            } else if (playerRoll < computerRoll) {
-                System.out.println("❌ Computer won. You lost " + bet + " coins.\\n");
-                coins -= bet;
-            } else {
-                System.out.println("🤝 Tie! Bet returned.\\n");
-            }
-        }
-
-        System.out.println("Game over! Final coins: " + coins);
-    }
-}
-`,
-  },
-  {
-    label: 'Math & Calculator',
-    title: 'Java Smart Calculator',
-    category: 'utility',
-    instructions: 'Choose an operation and type your numbers to compute roots, powers, factorials, and trigonometry.',
-    code: `import java.util.Scanner;
-
-public class Calculator {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        System.out.println("==================================");
-        System.out.println("      JAVA SMART CALCULATOR       ");
-        System.out.println("==================================");
-        System.out.println("1. Addition (+)");
-        System.out.println("2. Subtraction (-)");
-        System.out.println("3. Multiplication (*)");
-        System.out.println("4. Division (/)");
-        System.out.println("5. Square Root (√)");
-
-        System.out.print("\\nEnter operation (1-5): ");
-        int choice = scanner.nextInt();
-
-        if (choice >= 1 && choice <= 4) {
-            System.out.print("Enter first number: ");
-            double a = scanner.nextDouble();
-            System.out.print("Enter second number: ");
-            double b = scanner.nextDouble();
-
-            double result = 0;
-            if (choice == 1) result = a + b;
-            if (choice == 2) result = a - b;
-            if (choice == 3) result = a * b;
-            if (choice == 4) result = b != 0 ? a / b : Double.NaN;
-
-            System.out.println("\\nResult: " + result);
-        } else if (choice == 5) {
-            System.out.print("Enter number: ");
-            double num = scanner.nextDouble();
-            System.out.println("\\nSquare root of " + num + " = " + Math.sqrt(num));
-        }
-
-        System.out.println("\\nDone.");
-    }
-}
-`,
-  },
-];
-
 export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onProjectCreated }) => {
-  const [tab, setTab] = useState<'upload' | 'write'>('upload');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [author, setAuthor] = useState(() => localStorage.getItem('javadrop_author') || 'Fulvio');
+  const [author, setAuthor] = useState(() => localStorage.getItem('javadrop_author') || '');
   const [category, setCategory] = useState<ProjectCategory>('game');
   const [instructions, setInstructions] = useState('');
-  const [tagsInput, setTagsInput] = useState('Java, Family');
+  const [tagsInput, setTagsInput] = useState('Java');
 
-  // Upload state
-  const [uploadedFiles, setUploadedFiles] = useState<JavaFile[]>([]);
-  const [binaryData, setBinaryData] = useState<string | undefined>();
-  const [binaryFilename, setBinaryFilename] = useState<string | undefined>();
-  const [projectType, setProjectType] = useState<ProjectType>('code');
+  const [binaryData, setBinaryData] = useState<string | null>(null);
+  const [binaryFilename, setBinaryFilename] = useState<string | null>(null);
+  const [projectType, setProjectType] = useState<ProjectType>('jar');
   const [jarManifest, setJarManifest] = useState<any>();
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
-
-  // Write code state
-  const [codeContent, setCodeContent] = useState(TEMPLATES[0].code);
-  const [mainFilename, setMainFilename] = useState('Main.java');
+  const [fileDetails, setFileDetails] = useState<{ name: string; size: string; type: string } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -137,137 +32,70 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onPro
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    setProcessingStatus('Analyzing uploaded file...');
-
     const file = files[0];
     const filename = file.name;
     const ext = filename.split('.').pop()?.toLowerCase();
 
+    if (ext !== 'jar' && ext !== 'class') {
+      alert('Please upload a compiled Java file (.jar executable archive or .class bytecode).');
+      return;
+    }
+
+    setProcessingStatus(`Analyzing ${filename}...`);
+    const sizeKb = (file.size / 1024).toFixed(1) + ' KB';
+    setFileDetails({ name: filename, size: sizeKb, type: ext === 'jar' ? 'JAR Archive' : 'Class Bytecode' });
+
     // Auto-generate title from filename if empty
     if (!title) {
-      const cleanName = filename.replace(/\.(java|jar|class)$/i, '').replace(/[-_]/g, ' ');
+      const cleanName = filename.replace(/\.(jar|class)$/i, '').replace(/[-_]/g, ' ');
       setTitle(cleanName.charAt(0).toUpperCase() + cleanName.slice(1));
     }
 
     try {
+      const arrayBuffer = await file.arrayBuffer();
+
+      // Convert to base64 for persistent storage and 1-click download
+      let binaryStr = '';
+      const bytes = new Uint8Array(arrayBuffer);
+      const len = bytes.byteLength;
+      for (let i = 0; i < len; i++) {
+        binaryStr += String.fromCharCode(bytes[i]);
+      }
+      const b64 = btoa(binaryStr);
+      setBinaryData(b64);
+      setBinaryFilename(filename);
+
       if (ext === 'jar') {
         setProjectType('jar');
-        setBinaryFilename(filename);
-
-        const arrayBuffer = await file.arrayBuffer();
-        // Convert to base64 for persistent storage & 1-click download
-        let binaryStr = '';
-        const bytes = new Uint8Array(arrayBuffer);
-        const len = bytes.byteLength;
-        for (let i = 0; i < len; i++) {
-          binaryStr += String.fromCharCode(bytes[i]);
-        }
-        const b64 = btoa(binaryStr);
-        setBinaryData(b64);
-
-        // Inspect JAR contents
         const parsed = await parseJarArchive(arrayBuffer);
         setJarManifest(parsed.manifest);
-
-        const javaFiles: JavaFile[] = [];
-        if (parsed.sourceFiles.length > 0) {
-          parsed.sourceFiles.forEach((sf, i) => {
-            javaFiles.push({ name: sf.name, content: sf.content, isMain: i === 0 });
-          });
-        } else if (parsed.decompiledClasses.length > 0) {
-          parsed.decompiledClasses.forEach((dc, i) => {
-            javaFiles.push({
-              name: `${dc.className.split('.').pop()}.java`,
-              content: dc.decompiledCode,
-              isMain: i === 0,
-            });
-          });
-        } else {
-          javaFiles.push({
-            name: 'Manifest.txt',
-            content: `JAR Entries (${parsed.entries.length} items):\n` + parsed.entries.join('\n'),
-            isMain: true,
-          });
-        }
-
-        setUploadedFiles(javaFiles);
-        setProcessingStatus(`Extracted JAR archive successfully! (${parsed.entries.length} files detected)`);
-      } else if (ext === 'class') {
-        setProjectType('class');
-        setBinaryFilename(filename);
-
-        const arrayBuffer = await file.arrayBuffer();
-        let binaryStr = '';
-        const bytes = new Uint8Array(arrayBuffer);
-        for (let i = 0; i < bytes.length; i++) {
-          binaryStr += String.fromCharCode(bytes[i]);
-        }
-        setBinaryData(btoa(binaryStr));
-
-        // Disassemble class bytecode
-        const parsedClass = parseClassFile(arrayBuffer);
-        setUploadedFiles([
-          {
-            name: `${parsedClass.className.split('.').pop()}.java`,
-            content: parsedClass.decompiledCode,
-            isMain: true,
-          },
-        ]);
-        setProcessingStatus(`Disassembled ${parsedClass.javaVersionName} class file!`);
-      } else if (ext === 'java') {
-        setProjectType('code');
-        const text = await file.text();
-        const extractedClassName = text.match(/public\s+class\s+(\w+)/)?.[1] || filename.replace('.java', '');
-        setUploadedFiles([
-          {
-            name: `${extractedClassName}.java`,
-            content: text,
-            isMain: true,
-          },
-        ]);
-        setProcessingStatus(`Loaded ${filename} (${text.split('\n').length} lines)`);
+        setProcessingStatus(
+          `Verified JAR: ${parsed.manifest.mainClass ? `Main-Class: ${parsed.manifest.mainClass}` : `${parsed.entries.length} entries`}`
+        );
       } else {
-        alert('Please upload a .java, .jar, or .class file.');
-        setProcessingStatus(null);
+        setProjectType('class');
+        const parsedClass = parseClassFile(arrayBuffer);
+        setJarManifest({ mainClass: parsedClass.className });
+        setProcessingStatus(`Verified Class: ${parsedClass.className} (${parsedClass.javaVersionName})`);
       }
     } catch (err: any) {
       console.error('File parsing error:', err);
-      alert('Error parsing file: ' + (err.message || 'Unknown format issue'));
+      alert('Error parsing Java file: ' + (err.message || 'Corrupted file'));
       setProcessingStatus(null);
     }
-  };
-
-  const handleApplyTemplate = (tmpl: (typeof TEMPLATES)[0]) => {
-    setCodeContent(tmpl.code);
-    setTitle(tmpl.title);
-    setCategory(tmpl.category);
-    setInstructions(tmpl.instructions);
-    setMainFilename('Main.java');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!title.trim()) {
-      alert('Please enter a project title');
+    if (!binaryData || !binaryFilename) {
+      alert('Please upload a .jar or .class file first.');
       return;
     }
 
-    let files: JavaFile[] = [];
-    if (tab === 'upload') {
-      if (uploadedFiles.length === 0) {
-        alert('Please choose a .java, .jar, or .class file to upload.');
-        return;
-      }
-      files = uploadedFiles;
-    } else {
-      files = [
-        {
-          name: mainFilename.endsWith('.java') ? mainFilename : `${mainFilename}.java`,
-          content: codeContent,
-          isMain: true,
-        },
-      ];
+    if (!title.trim()) {
+      alert('Please enter a project title.');
+      return;
     }
 
     const tags = tagsInput
@@ -278,35 +106,43 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onPro
     const project: JavaProject = {
       id: title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `java-${Date.now()}`,
       title: title.trim(),
-      description: description.trim() || 'A Java project created for friends and family.',
+      description: description.trim() || 'Java project ready to run and share.',
       author: author.trim() || 'Author',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      type: tab === 'upload' ? projectType : 'code',
+      type: projectType,
       category,
       instructions: instructions.trim() || 'Run this project online or download and run on your computer.',
-      files,
+      files: [],
       binaryBase64: binaryData,
       binaryFilename,
       jarManifest,
-      tags: tags.length > 0 ? tags : ['Java', 'Console'],
+      tags: tags.length > 0 ? tags : ['Java', projectType.toUpperCase()],
     };
 
-    localStorage.setItem('javadrop_author', author.trim());
+    if (author.trim()) {
+      localStorage.setItem('javadrop_author', author.trim());
+    }
+
     onProjectCreated(project);
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-8">
-        {/* Modal Header */}
+      <div className="relative w-full max-w-xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-8">
+        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/50">
-          <div>
-            <h2 className="text-lg font-bold text-white">Add New Java Project</h2>
-            <p className="text-xs text-slate-400">
-              Upload .jar, .class, or .java code to host and share with family
-            </p>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+              <Archive className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white">Upload Java Project</h2>
+              <p className="text-xs text-slate-400">
+                Upload your compiled <strong className="text-amber-300">.jar</strong> or <strong className="text-amber-300">.class</strong> to run and share
+              </p>
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -316,108 +152,63 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onPro
           </button>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex items-center gap-2 px-6 pt-4 border-b border-slate-800 bg-slate-950/40">
-          <button
-            type="button"
-            onClick={() => setTab('upload')}
-            className={`flex items-center gap-2 pb-3 px-3 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
-              tab === 'upload'
-                ? 'border-amber-400 text-amber-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Upload className="w-4 h-4" />
-            <span>Upload File (.jar / .class / .java)</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('write')}
-            className={`flex items-center gap-2 pb-3 px-3 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
-              tab === 'write'
-                ? 'border-amber-400 text-amber-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <FileCode className="w-4 h-4" />
-            <span>Write Java Code / Pick Template</span>
-          </button>
-        </div>
-
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
-          {tab === 'upload' ? (
-            <div className="space-y-4">
-              {/* Dropzone */}
+          {/* Dropzone */}
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
+              fileDetails
+                ? 'border-emerald-500/60 bg-emerald-950/20'
+                : 'border-slate-700 hover:border-amber-400/80 bg-slate-950/40 hover:bg-slate-950/60'
+            }`}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".jar,.class"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            <div className="flex justify-center mb-3">
               <div
-                onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-slate-700 hover:border-amber-400/80 rounded-xl p-6 text-center cursor-pointer bg-slate-950/40 hover:bg-slate-950/60 transition-colors"
+                className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                  fileDetails
+                    ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400'
+                    : 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
+                }`}
               >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".java,.jar,.class"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-                <div className="flex justify-center mb-3">
-                  <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
-                    <Upload className="w-6 h-6" />
-                  </div>
-                </div>
-                <h4 className="text-sm font-semibold text-white">
-                  Click to browse or drop your Java file here
-                </h4>
-                <p className="text-xs text-slate-400 mt-1">
-                  Supports <strong>.jar</strong> (packaged executable), <strong>.class</strong> (bytecode), or <strong>.java</strong> (source)
+                {fileDetails ? <Check className="w-6 h-6" /> : <Upload className="w-6 h-6" />}
+              </div>
+            </div>
+
+            {fileDetails ? (
+              <div className="space-y-1">
+                <h4 className="text-sm font-bold text-white">{fileDetails.name}</h4>
+                <p className="text-xs text-emerald-400 font-mono">
+                  {fileDetails.type} · {fileDetails.size} · Ready to run
+                </p>
+                <p className="text-[11px] text-slate-400 pt-1">Click to choose a different file</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <h4 className="text-sm font-semibold text-white">Click or drag & drop your Java file</h4>
+                <p className="text-xs text-slate-400">
+                  Select your compiled <strong>.jar</strong> executable archive or <strong>.class</strong> file
                 </p>
               </div>
+            )}
+          </div>
 
-              {processingStatus && (
-                <div className="p-3 bg-slate-950 border border-slate-800 rounded-lg text-xs font-mono text-emerald-400 flex items-center gap-2">
-                  <Check className="w-4 h-4 shrink-0" />
-                  <span>{processingStatus}</span>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {/* Template selector */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Quick Start Templates:
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {TEMPLATES.map((tmpl) => (
-                    <button
-                      key={tmpl.label}
-                      type="button"
-                      onClick={() => handleApplyTemplate(tmpl)}
-                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs text-slate-200 transition-colors cursor-pointer"
-                    >
-                      {tmpl.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Code editor */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Java Code:
-                </label>
-                <textarea
-                  value={codeContent}
-                  onChange={(e) => setCodeContent(e.target.value)}
-                  rows={8}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono text-xs text-slate-100 focus:outline-none focus:border-amber-400 leading-relaxed"
-                />
-              </div>
+          {processingStatus && (
+            <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-lg text-xs font-mono text-emerald-400 flex items-center gap-2">
+              <Check className="w-4 h-4 shrink-0 text-emerald-400" />
+              <span>{processingStatus}</span>
             </div>
           )}
 
           {/* Project Details Fields */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
                 Project Title *
@@ -427,20 +218,20 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onPro
                 required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Dungeon Explorer RPG"
+                placeholder="e.g. My Game"
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
               />
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Your Name (Author)
+                Author Name
               </label>
               <input
                 type="text"
                 value={author}
                 onChange={(e) => setAuthor(e.target.value)}
-                placeholder="e.g. Fulvio"
+                placeholder="Your name"
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
               />
             </div>
@@ -456,11 +247,11 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onPro
                 onChange={(e) => setCategory(e.target.value as ProjectCategory)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
               >
-                <option value="game">Interactive Game</option>
+                <option value="game">Game / Interactive</option>
                 <option value="console">Console Application</option>
                 <option value="utility">Utility / Tool</option>
-                <option value="graphics">2D Graphics / Canvas</option>
-                <option value="educational">Educational / Learning</option>
+                <option value="graphics">AWT / Swing / GUI</option>
+                <option value="educational">Educational / Demo</option>
               </select>
             </div>
 
@@ -472,7 +263,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onPro
                 type="text"
                 value={tagsInput}
                 onChange={(e) => setTagsInput(e.target.value)}
-                placeholder="Game, Fun, School"
+                placeholder="Java, Game, Fun"
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
               />
             </div>
@@ -500,12 +291,12 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onPro
               value={instructions}
               onChange={(e) => setInstructions(e.target.value)}
               rows={2}
-              placeholder="e.g. 'Type numbers 1-100 to guess my secret number! Press Enter after each guess.'"
+              placeholder="e.g. 'Type your moves in the console' or 'Click the buttons on screen'"
               className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-400"
             />
           </div>
 
-          {/* Modal Footer */}
+          {/* Footer */}
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
             <button
               type="button"
@@ -516,9 +307,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onPro
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 rounded-lg shadow-md shadow-amber-500/20 transition-all cursor-pointer"
+              disabled={!binaryData}
+              className={`px-5 py-2 text-xs font-bold rounded-lg transition-all ${
+                binaryData
+                  ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-md shadow-amber-500/20 cursor-pointer'
+                  : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+              }`}
             >
-              Save & Create Share Link
+              Save & Get Share Link
             </button>
           </div>
         </form>
