@@ -34,8 +34,9 @@ export async function ensureCheerpJLoaded(): Promise<void> {
       throw new Error('CheerpJ initialization function not found on window.');
     }
 
-    // 2. Initialize the WebAssembly JVM
+    // 2. Initialize the WebAssembly JVM with Java 17 support
     await window.cheerpjInit({
+      version: 17,
       enableDebug: false,
     });
 
@@ -61,11 +62,11 @@ export async function runRealJavaJar({
   displayContainer?: HTMLElement | null;
   onOutput: (text: string, type: 'stdout' | 'stderr' | 'system') => void;
 }): Promise<number> {
-  onOutput('Starting WebAssembly OpenJDK Java Virtual Machine...\n', 'system');
+  onOutput('Starting WebAssembly OpenJDK 17 Java Virtual Machine...\n', 'system');
 
   try {
     await ensureCheerpJLoaded();
-    onOutput('OpenJDK JVM Initialized successfully.\n', 'system');
+    onOutput('OpenJDK 17 JVM Initialized successfully.\n', 'system');
 
     let jarData: Uint8Array = binaryBytes;
     let mainClassName = className || 'Main';
