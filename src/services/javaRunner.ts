@@ -7,11 +7,6 @@ export interface RunnerCallbacks {
   onFinished: (exitCode: number) => void;
 }
 
-/**
- * Browser-based Java code transpiler and runtime simulator.
- * Translates standard Java syntax (Scanner, System.out, loops, methods, OOP basics)
- * into an asynchronous execution environment that supports real user terminal input.
- */
 export class JavaRuntime {
   private isTerminated = false;
   private currentResolver: ((val: string) => void) | null = null;
@@ -33,16 +28,35 @@ export class JavaRuntime {
     callbacks.onOutput('=== Java Virtual Machine Initialized ===\n', 'system');
 
     try {
-      // 1. Preprocess Java source code to executable JS generator / async function
+      // 1. Transpile Java source code to clean async JavaScript
       const executableJs = this.transpileJavaToJs(code);
 
       // 2. Set up Java standard library mock environment
       const env = this.createJavaEnvironment(callbacks);
 
-      // 3. Execute
+      // 3. Execute with scoped variables
       const runFn = new Function('javaEnv', `
         return (async function() {
-          const { System, Scanner, Math, Random, Integer, Double, Boolean, StringUtils, Thread, promptInput } = javaEnv;
+          const {
+            System,
+            Scanner,
+            Math,
+            Random,
+            Integer,
+            Double,
+            Boolean,
+            Thread,
+            ArrayList,
+            List,
+            HashMap,
+            Map,
+            HashSet,
+            Set,
+            Arrays,
+            Collections,
+            StringBuilder,
+            StringBuffer,
+          } = javaEnv;
           ${executableJs}
         })();
       `);
@@ -68,7 +82,7 @@ export class JavaRuntime {
   private createJavaEnvironment(callbacks: RunnerCallbacks) {
     const self = this;
 
-    // Scanner implementation
+    // Mock Scanner
     class MockScanner {
       private buffer: string[] = [];
 
@@ -79,7 +93,6 @@ export class JavaRuntime {
         const line = await callbacks.onRequestInput(promptHint);
         if (self.isTerminated) throw new Error('Interrupted');
         callbacks.onOutput(line + '\n', 'input');
-        // split by whitespace
         const tokens = line.trim().split(/\s+/).filter(Boolean);
         if (tokens.length === 0) {
           this.buffer.push('');
@@ -93,7 +106,7 @@ export class JavaRuntime {
         const line = await callbacks.onRequestInput();
         if (self.isTerminated) throw new Error('Interrupted');
         callbacks.onOutput(line + '\n', 'input');
-        this.buffer = []; // clear token buffer on whole line
+        this.buffer = [];
         return line;
       }
 
@@ -122,11 +135,28 @@ export class JavaRuntime {
         return num;
       }
 
+      async nextFloat(): Promise<number> {
+        return this.nextDouble();
+      }
+
+      async nextLong(): Promise<number> {
+        return this.nextInt();
+      }
+
+      async nextBoolean(): Promise<boolean> {
+        const token = await this.next();
+        return token.toLowerCase() === 'true';
+      }
+
       hasNextInt(): boolean {
         return true;
       }
 
       hasNextLine(): boolean {
+        return true;
+      }
+
+      hasNext(): boolean {
         return true;
       }
 
@@ -171,7 +201,7 @@ export class JavaRuntime {
       },
     };
 
-    // Java Random class
+    // Java Random
     class MockRandom {
       nextInt(bound?: number): number {
         if (bound === undefined) {
@@ -185,6 +215,100 @@ export class JavaRuntime {
       nextBoolean(): boolean {
         return Math.random() >= 0.5;
       }
+    }
+
+    // Java ArrayList
+    class MockArrayList<T = any> {
+      private items: T[] = [];
+      constructor(initial?: T[]) {
+        if (Array.isArray(initial)) this.items = [...initial];
+      }
+      add(item: T) { this.items.push(item); return true; }
+      get(index: number): T { return this.items[index]; }
+      set(index: number, item: T) { const old = this.items[index]; this.items[index] = item; return old; }
+      size(): number { return this.items.length; }
+      isEmpty(): boolean { return this.items.length === 0; }
+      contains(item: T): boolean { return this.items.includes(item); }
+      remove(indexOrItem: any) {
+        if (typeof indexOrItem === 'number') {
+          return this.items.splice(indexOrItem, 1)[0];
+        }
+        const idx = this.items.indexOf(indexOrItem);
+        if (idx !== -1) { this.items.splice(idx, 1); return true; }
+        return false;
+      }
+      clear() { this.items = []; }
+      toArray(): T[] { return [...this.items]; }
+      [Symbol.iterator]() { return this.items[Symbol.iterator](); }
+      toString(): string { return '[' + this.items.join(', ') + ']'; }
+    }
+
+    // Java HashMap
+    class MockHashMap<K = any, V = any> {
+      private map = new globalThis.Map<K, V>();
+      put(key: K, val: V): V { this.map.set(key, val); return val; }
+      get(key: K): V | undefined { return this.map.get(key); }
+      containsKey(key: K): boolean { return this.map.has(key); }
+      size(): number { return this.map.size; }
+      remove(key: K): boolean { return this.map.delete(key); }
+      clear() { this.map.clear(); }
+      keySet(): K[] { return Array.from(this.map.keys()); }
+      values(): V[] { return Array.from(this.map.values()); }
+    }
+
+    // Java HashSet
+    class MockHashSet<T = any> {
+      private set = new globalThis.Set<T>();
+      add(item: T): boolean { const has = this.set.has(item); this.set.add(item); return !has; }
+      contains(item: T): boolean { return this.set.has(item); }
+      size(): number { return this.set.size; }
+      remove(item: T): boolean { return this.set.delete(item); }
+      clear() { this.set.clear(); }
+      [Symbol.iterator]() { return this.set[Symbol.iterator](); }
+    }
+
+    // Java Arrays
+    const MockArrays = {
+      toString: (arr: any) => (Array.isArray(arr) ? '[' + arr.join(', ') + ']' : String(arr)),
+      sort: (arr: any[]) => {
+        if (Array.isArray(arr)) arr.sort((a, b) => (a > b ? 1 : a < b ? -1 : 0));
+      },
+      fill: (arr: any[], val: any) => {
+        if (Array.isArray(arr)) arr.fill(val);
+      },
+      asList: (...items: any[]) => new MockArrayList(items),
+    };
+
+    // Java Collections
+    const MockCollections = {
+      sort: (list: any) => {
+        if (list && typeof list.toArray === 'function') {
+          const arr = list.toArray();
+          arr.sort((a: any, b: any) => (a > b ? 1 : a < b ? -1 : 0));
+          list.clear();
+          arr.forEach((it: any) => list.add(it));
+        } else if (Array.isArray(list)) {
+          list.sort((a, b) => (a > b ? 1 : a < b ? -1 : 0));
+        }
+      },
+      reverse: (list: any) => {
+        if (list && typeof list.toArray === 'function') {
+          const arr = list.toArray().reverse();
+          list.clear();
+          arr.forEach((it: any) => list.add(it));
+        } else if (Array.isArray(list)) {
+          list.reverse();
+        }
+      },
+    };
+
+    // Java StringBuilder
+    class MockStringBuilder {
+      private str = '';
+      constructor(initial = '') { this.str = String(initial); }
+      append(val: any) { this.str += String(val); return this; }
+      toString(): string { return this.str; }
+      length(): number { return this.str.length; }
     }
 
     return {
@@ -203,6 +327,10 @@ export class JavaRuntime {
         random: Math.random,
         PI: Math.PI,
         E: Math.E,
+        sin: Math.sin,
+        cos: Math.cos,
+        tan: Math.tan,
+        log: Math.log,
       },
       Random: MockRandom,
       Integer: {
@@ -226,14 +354,41 @@ export class JavaRuntime {
           await new Promise(r => setTimeout(r, ms));
         },
       },
-      promptInput: async (promptHint?: string) => {
-        return await callbacks.onRequestInput(promptHint);
-      },
+      ArrayList: MockArrayList,
+      List: MockArrayList,
+      HashMap: MockHashMap,
+      Map: MockHashMap,
+      HashSet: MockHashSet,
+      Set: MockHashSet,
+      Arrays: MockArrays,
+      Collections: MockCollections,
+      StringBuilder: MockStringBuilder,
+      StringBuffer: MockStringBuilder,
     };
   }
 
   /**
-   * Transpiles a subset of Java code into clean asynchronous JavaScript.
+   * Balanced brace block extractor to prevent accidental trailing closing braces
+   */
+  private extractBalancedBlock(code: string, startIndex: number): { body: string; endIndex: number } {
+    let depth = 0;
+    let start = -1;
+    for (let i = startIndex; i < code.length; i++) {
+      if (code[i] === '{') {
+        if (depth === 0) start = i + 1;
+        depth++;
+      } else if (code[i] === '}') {
+        depth--;
+        if (depth === 0) {
+          return { body: code.substring(start, i), endIndex: i };
+        }
+      }
+    }
+    return { body: code.substring(startIndex), endIndex: code.length };
+  }
+
+  /**
+   * Transpiles standard Java code into clean asynchronous JavaScript.
    */
   private transpileJavaToJs(source: string): string {
     // 1. Remove package declarations and imports
@@ -242,70 +397,90 @@ export class JavaRuntime {
       .replace(/import\s+[\w.*]+;/g, '');
 
     // 2. Transform Scanner instantiations
-    code = code.replace(/Scanner\s+(\w+)\s*=\s*new\s+Scanner\([^)]*\);/g, 'const $1 = new Scanner();');
+    code = code.replace(/new\s+Scanner\([^)]*\)/g, 'new Scanner()');
 
     // 3. Transform Scanner method calls to await calls
     code = code.replace(/(\w+)\.nextLine\(\)/g, 'await $1.nextLine()');
     code = code.replace(/(\w+)\.nextInt\(\)/g, 'await $1.nextInt()');
     code = code.replace(/(\w+)\.nextDouble\(\)/g, 'await $1.nextDouble()');
+    code = code.replace(/(\w+)\.nextFloat\(\)/g, 'await $1.nextDouble()');
+    code = code.replace(/(\w+)\.nextLong\(\)/g, 'await $1.nextInt()');
+    code = code.replace(/(\w+)\.nextBoolean\(\)/g, 'await $1.nextBoolean()');
     code = code.replace(/(\w+)\.next\(\)/g, 'await $1.next()');
 
     // 4. Transform Thread.sleep
     code = code.replace(/Thread\.sleep\((\d+)\)/g, 'await Thread.sleep($1)');
 
-    // 5. Transform Java type declarations in local variables
-    // e.g. int x = 5; -> let x = 5;
-    // String name = "Bob"; -> let name = "Bob";
-    // boolean hasWon = false; -> let hasWon = false;
-    // double rate = 3.14; -> let rate = 3.14;
-    // long a = 0; -> let a = 0;
-    // char c = 'a'; -> let c = 'a';
-    const typeRegex = /\b(?:int|double|float|long|short|byte|boolean|char|String|Random|Scanner)\s+(\w+)(\s*=\s*[^;]+)?;/g;
-    code = code.replace(typeRegex, (_match, varName, assignment) => {
-      return `let ${varName}${assignment || ''};`;
+    // 5. Enhanced for-loop: for (Type x : list) -> for (let x of list)
+    code = code.replace(/for\s*\(\s*(?:final\s+)?[\w<>\[\]]+\s+(\w+)\s*:\s*([^)]+)\)/g, 'for (let $1 of $2)');
+
+    // 6. for (int i = 0; ...) -> for (let i = 0; ...)
+    code = code.replace(/for\s*\(\s*(?:(?:int|long|double|float|short|byte|var)\s+)+/g, 'for (let ');
+
+    // 7. Transform Java variable declarations into "let variableName ..."
+    // Matches primitive types, library types, and ANY capitalized class identifier (e.g. User, Person, Game, MyClass, List<String>, int[], etc.)
+    const knownTypes = 'int|long|short|byte|float|double|boolean|char|String|Scanner|Random|Integer|Double|Boolean|List|ArrayList|Map|HashMap|Set|HashSet|StringBuilder|StringBuffer|Object|var';
+    const varDeclRegex = new RegExp(
+      `(?:^|[;{}\\n])\\s*(?:(?:public|private|protected|static|final)\\s+)*(?:(?:${knownTypes})|[A-Z]\\w*(?:<[^>]+>)?)(?:\\[\\s*\\])*\\s+([a-zA-Z_]\\w*)\\s*([=;,])`,
+      'g'
+    );
+
+    code = code.replace(varDeclRegex, (match, varName, separator) => {
+      const prefix = match.substring(0, match.indexOf(varName));
+      const leadingWhitespace = prefix.match(/^[\s;{}\n]*/)?.[0] || '';
+      return `${leadingWhitespace}let ${varName} ${separator}`;
     });
 
-    // 6. Transform Arrays e.g. String[] enemies = { ... }; -> let enemies = [ ... ];
-    code = code.replace(/\b(?:int|String|double|boolean|char)\[\]\s+(\w+)\s*=\s*\{([^}]+)\};/g, 'let $1 = [$2];');
-    code = code.replace(/\b(?:int|String|double|boolean|char)\[\]\s+(\w+)\s*=\s*new\s+(?:int|String|double|boolean|char)\[([^\]]+)\];/g, 'let $1 = new Array($2).fill(0);');
+    // 8. Arrays
+    // int[] arr = { 1, 2, 3 }; -> let arr = [ 1, 2, 3 ];
+    code = code.replace(/\[\s*\]\s*=\s*\{([^}]+)\}/g, ' = [$1]');
+    code = code.replace(/new\s+(?:int|double|float|long|boolean|char|String)\[([^\]]+)\]/g, 'new Array($1).fill(0)');
+    code = code.replace(/new\s+(?:int|double|float|long|boolean|char|String)\[\s*\]\s*\{([^}]+)\}/g, '[$1]');
 
-    // 7. Transform String methods:
+    // 9. Exception catch blocks: catch (Exception e) -> catch (e)
+    code = code.replace(/catch\s*\(\s*(?:final\s+)?[\w.]+\s+(\w+)\s*\)/g, 'catch ($1)');
+
+    // 10. String methods:
     // .equals(...) -> === ...
-    // Note: handle simple .equals
     code = code.replace(/\.equals\(([^)]+)\)/g, ' === $1');
     code = code.replace(/\.equalsIgnoreCase\(([^)]+)\)/g, '.toLowerCase() === String($1).toLowerCase()');
 
-    // 8. Transform Java labels (e.g. GAME: while(...) )
+    // 11. Labels
     code = code.replace(/([A-Z_]+):\s*while/g, '/* $1 */ while');
 
-    // 9. Extract methods and main body
-    // If there is public static void main(String[] args) { ... }
-    const mainMatch = code.match(/public\s+static\s+void\s+main\s*\([^)]*\)\s*\{([\s\S]*)\}/);
-    if (mainMatch) {
-      // Find class body and static helper methods
-      // For helper methods e.g. private static boolean isPrime(int n) { ... }
-      const methodRegex = /(?:public|private|protected)?\s*static\s+(?:boolean|int|double|String|void|long)\s+(\w+)\s*\(([^)]*)\)\s*\{([\s\S]*?)\n\s*\}/g;
-      
+    // 12. Main Method & Class extraction
+    // Look for public static void main
+    const mainRegex = /public\s+static\s+(?:void|async\s+void)\s+main\s*\([^)]*\)\s*\{/;
+    const mainIndex = code.search(mainRegex);
+
+    if (mainIndex !== -1) {
+      const block = this.extractBalancedBlock(code, mainIndex);
+      const mainBody = block.body;
+
+      // Extract static helper methods outside main
+      const helperRegex = /(?:public|private|protected)?\s*static\s+(?:boolean|int|double|float|String|void|long|[A-Z]\w*)\s+(\w+)\s*\(([^)]*)\)\s*\{/g;
       let helpers = '';
-      let mMatch;
-      while ((mMatch = methodRegex.exec(code)) !== null) {
-        const methodName = mMatch[1];
+      let match;
+
+      while ((match = helperRegex.exec(code)) !== null) {
+        const methodName = match[1];
         if (methodName !== 'main') {
-          const rawParams = mMatch[2];
-          // clean param types: int n, String s -> n, s
-          const cleanParams = rawParams.split(',').map(p => p.trim().split(/\s+/).pop()).filter(Boolean).join(', ');
-          let methodBody = mMatch[3];
-          // transform types in helper body
-          methodBody = methodBody.replace(typeRegex, (_m, v, a) => `let ${v}${a || ''};`);
-          helpers += `function ${methodName}(${cleanParams}) {\n${methodBody}\n}\n`;
+          const rawParams = match[2];
+          const cleanParams = rawParams
+            .split(',')
+            .map(p => p.trim().split(/\s+/).pop())
+            .filter(Boolean)
+            .join(', ');
+
+          const methodBlock = this.extractBalancedBlock(code, match.index);
+          helpers += `function ${methodName}(${cleanParams}) {\n${methodBlock.body}\n}\n\n`;
         }
       }
 
-      const mainBody = mainMatch[1];
       return `${helpers}\n${mainBody}`;
     }
 
-    // If no explicit main, return transformed code
+    // If no explicit main, return transformed body directly
     return code;
   }
 }
