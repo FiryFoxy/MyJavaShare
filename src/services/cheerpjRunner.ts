@@ -22,7 +22,7 @@ export async function ensureCheerpJLoaded(): Promise<void> {
     if (!window.cheerpjInit) {
       await new Promise<void>((resolve, reject) => {
         const script = document.createElement('script');
-        script.src = 'https://cjrtnc.leaningtech.com/3.0/cj3loader.js';
+        script.src = 'https://cjrtnc.leaningtech.com/4.3/loader.js';
         script.async = true;
         script.onload = () => resolve();
         script.onerror = () => reject(new Error('Failed to load CheerpJ WebAssembly JVM loader from CDN.'));
